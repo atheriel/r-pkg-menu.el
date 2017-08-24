@@ -1,4 +1,4 @@
-(defconst r-show-updates--cmd
+(defconst r-pkg-menu--pkg-list-code
   "local({
 # Get all installed packages and relevant metadata.
 raw_installed <- utils::installed.packages(fields = c('Title', 'Description',
@@ -65,8 +65,8 @@ invisible(NULL)
 })
 ")
 
-(cl-defstruct (r-pkg-package
-               (:constructor r-pkg-package-create))
+(cl-defstruct (r-pkg-menu-pkg
+               (:constructor r-pkg-menu-pkg-create))
   "Docs."
   name
   version
@@ -76,55 +76,56 @@ invisible(NULL)
   built-under
   title
   desc)
-(defun r-pkg-package--format-info (pkg)
+
+(defun r-pkg-menu--format-pkg (pkg)
   "Docs."
   (list pkg
-        `[,(propertize (r-pkg-package-name pkg) 'font-lock-face 'package-name)
-          ,(if (not (r-pkg-package-available pkg)) "--"
-             (propertize (r-pkg-package-available pkg)
+        `[,(propertize (r-pkg-menu-pkg-name pkg) 'font-lock-face 'package-name)
+          ,(if (not (r-pkg-menu-pkg-available pkg)) "--"
+             (propertize (r-pkg-menu-pkg-available pkg)
                          'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-package-version pkg)) "--"
-             (propertize (r-pkg-package-version pkg)
+          ,(if (not (r-pkg-menu-pkg-version pkg)) "--"
+             (propertize (r-pkg-menu-pkg-version pkg)
                          'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-package-status pkg)) "--"
-             (propertize (r-pkg-package-status pkg)
+          ,(if (not (r-pkg-menu-pkg-status pkg)) "--"
+             (propertize (r-pkg-menu-pkg-status pkg)
                          'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-package-repo pkg)) "--"
-             (propertize (r-pkg-package-repo pkg)
+          ,(if (not (r-pkg-menu-pkg-repo pkg)) "--"
+             (propertize (r-pkg-menu-pkg-repo pkg)
                          'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-package-title pkg)) "--"
-             (propertize (r-pkg-package-title pkg)
+          ,(if (not (r-pkg-menu-pkg-title pkg)) "--"
+             (propertize (r-pkg-menu-pkg-title pkg)
                          'font-lock-face 'package-description))
-          ,(if (not (r-pkg-package-desc pkg)) "--"
-             (propertize (r-pkg-package-desc pkg)
+          ,(if (not (r-pkg-menu-pkg-desc pkg)) "--"
+             (propertize (r-pkg-menu-pkg-desc pkg)
                          'font-lock-face 'package-description))]))
 
-(define-derived-mode r-pkg-update-mode tabulated-list-mode "R Package Menu"
+(define-derived-mode r-pkg-menu-mode tabulated-list-mode "R Package Menu"
   "Docs."
   (setq tabulated-list-padding 2)
   (setq tabulated-list-sort-key '("Package" . nil))
-  (add-hook 'tabulated-list-revert-hook #'r-pkg-update-refresh nil t))
+  (add-hook 'tabulated-list-revert-hook #'r-pkg-menu--refresh nil t))
 
-(defun r-list-pkg-updates ()
+(defun r-pkg-menu ()
   "Docs."
   (interactive)
   (unless (and (boundp 'ess-dialect) (string= "R" ess-dialect))
     (user-error "Must be called from an *R* buffer."))
   (let ((proc ess-local-process-name))
     (with-current-buffer (get-buffer-create "*R Packages*")
-      (r-pkg-update-mode)
+      (r-pkg-menu-mode)
       (setq-local ess-local-process-name proc)
-      (r-pkg-update-refresh)
+      (r-pkg-menu--refresh)
       (tabulated-list-print)
       (hl-line-mode 1)
       (switch-to-buffer (current-buffer)))))
 
-(defun r-pkg-update-refresh ()
+(defun r-pkg-menu--refresh ()
   "Docs."
   (interactive)
   (let ((buff (get-buffer-create "*R Packages (Internal)*"))
         header has-repo pkgs)
-    (ess-command r-show-updates--cmd buff)
+    (ess-command r-pkg-menu--pkg-list-code buff)
     (with-current-buffer buff
       (goto-char (point-min))
       ;; Skip forward until we see the printed data.frame output.
@@ -149,7 +150,7 @@ invisible(NULL)
                  ;; Header/order should be: Package Available Installed
                  ;; (Repository) Built Under Description
                  (parts (split-string raw "[\\ |\\\n]\\{2,\\}" t "[\\ |\\\n]"))
-                 (pkg (r-pkg-package-create
+                 (pkg (r-pkg-menu-pkg-create
                        :name (car parts)
                        :version (nth 2 parts)
                        :available (when (not (string= "--" (nth 1 parts)))
@@ -163,7 +164,7 @@ invisible(NULL)
     ;; Write the list of packages into `tabulated-list-entries'.
     (with-current-buffer (get-buffer-create "*R Packages*")
       (setq tabulated-list-entries
-            (mapcar #'r-pkg-package--format-info pkgs)
+            (mapcar #'r-pkg-menu--format-pkg pkgs)
             tabulated-list-format `[("Package" 18 t)
                                     ("Available" 9 nil)
                                     ("Installed" 9 nil)
@@ -176,3 +177,5 @@ invisible(NULL)
     ;; Clean up the intermediate buffer.
     ;; (kill-buffer buff)
     (message "R Packages: %d" (length pkgs))))
+
+(provide 'r-pkg-menu)
