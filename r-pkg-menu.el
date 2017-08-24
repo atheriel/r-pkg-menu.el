@@ -42,9 +42,11 @@
   "local({
 # Get all installed packages and relevant metadata.
 raw_installed <- utils::installed.packages(fields = c('Title', 'Description',
-                                                      'Repository'))
+                                                      'Repository',
+                                                      'RemoteType'))
 installed <- as.data.frame(raw_installed, stringsAsFactors = FALSE)[,
-  c('Package', 'Title', 'Description', 'Version', 'Priority', 'Repository')]
+  c('Package', 'Title', 'Description', 'Version', 'Priority', 'Repository',
+    'RemoteType')]
 
 # Compute package status: base, recommended, dependency, installed
 installed$Status <- installed$Priority
@@ -74,6 +76,13 @@ installed$Description <- lapply(
   function(x) ifelse(length(x) > 1, paste0(x[1], '...'), x)
 )
 
+# Attempt to annotate local and GitHub-sourced repos using RemoteType.
+installed$Source <- ifelse(is.na(installed$RemoteType),
+                           installed$Repository,
+                           installed$RemoteType)
+installed$Repository <- NULL
+installed$RemoteType <- NULL
+
 # Check which packages need to be updated.
 updates <- utils::old.packages(instPkgs = raw_installed)
 cat('\n') # For readability.
@@ -85,8 +94,8 @@ updates$Available <- updates$ReposVer
 updates$Repository <- NULL
 
 info <- merge(updates, installed, all.y = TRUE)[,
-  c('Package', 'Available', 'Installed', 'Status', 'Repository',
-    'Title', 'Description')]
+  c('Package', 'Available', 'Installed', 'Status', 'Source', 'Title',
+    'Description')]
 
 # Replace NAs with '--'
 info$Available[is.na(info$Available)] <- '--'
@@ -161,7 +170,7 @@ invisible(NULL)
                (end (progn (re-search-forward "Description") (point))))
           (setq header (split-string (buffer-substring begin end)
                                      "[\\ ]\\{1,\\}" t "\\ ")
-                has-repo (not (null (member "Repository" header))))
+                has-repo (not (null (member "Source" header))))
           (message "header: %s" header)
           (forward-line 1))
         ;; Populate the list of packages.
@@ -191,7 +200,7 @@ invisible(NULL)
                                     ("Available" 9 r-pkg-menu--available-pred)
                                     ("Installed" 9 nil)
                                     ("Status" 11 r-pkg-menu--status-pred)
-                                    ("Repository" 10 t)
+                                    ("Source" 10 t)
                                     ("Title" 50 nil)
                                     ("Description" 0 nil)])
       ;; Refresh the header.
