@@ -103,7 +103,7 @@ invisible(NULL)
 (define-derived-mode r-pkg-menu-mode tabulated-list-mode "R Package Menu"
   "Docs."
   (setq tabulated-list-padding 2)
-  (setq tabulated-list-sort-key '("Package" . nil))
+  (setq tabulated-list-sort-key '("Available" . nil))
   (add-hook 'tabulated-list-revert-hook #'r-pkg-menu--refresh nil t))
 
 (defun r-pkg-menu ()
@@ -165,10 +165,10 @@ invisible(NULL)
     (with-current-buffer (get-buffer-create "*R Packages*")
       (setq tabulated-list-entries
             (mapcar #'r-pkg-menu--format-pkg pkgs)
-            tabulated-list-format `[("Package" 18 t)
-                                    ("Available" 9 nil)
+            tabulated-list-format `[("Package" 18 r-pkg-menu--name-pred)
+                                    ("Available" 9 r-pkg-menu--available-pred)
                                     ("Installed" 9 nil)
-                                    ("Status" 11 t)
+                                    ("Status" 11 r-pkg-menu--status-pred)
                                     ("Repository" 10 t)
                                     ("Title" 50 nil)
                                     ("Description" 0 nil)])
@@ -177,5 +177,47 @@ invisible(NULL)
     ;; Clean up the intermediate buffer.
     ;; (kill-buffer buff)
     (message "R Packages: %d" (length pkgs))))
+
+;;;; Sorting Package Entries
+
+(defun r-pkg-menu--name-pred (pkg-a pkg-b)
+  "Compare the names of PKG-A and PKG-B.
+
+Following R's convention, this comparison is case-insensitive."
+  (string< (downcase (r-pkg-menu-pkg-name (car pkg-a)))
+           (downcase (r-pkg-menu-pkg-name (car pkg-b)))))
+
+(defun r-pkg-menu--status-index (pkg)
+  "Convert the status of PKG from a string to an index."
+  (pcase (r-pkg-menu-pkg-status pkg)
+    ("installed" 4)
+    ("dependency" 3)
+    ("recommended" 2)
+    ("base" 1)
+    (_ 0)))
+
+(defun r-pkg-menu--status-pred (pkg-a pkg-b)
+  "Compare the status of PKG-A and PKG-B.
+
+The sort order is 'base', 'recommended', 'dependency',
+'installed'."
+  (< (r-pkg-menu--status-index (car pkg-a))
+     (r-pkg-menu--status-index (car pkg-b))))
+
+(defun r-pkg-menu--available-pred (pkg-a pkg-b)
+  "Compare available versions of PKG-A and PKG-B.
+
+The sort order is purely 'does an available version exist'. There
+is no sorting on the actual version. Instead, secondary sorting
+is on the package name."
+  (let ((avail-a (r-pkg-menu-pkg-available (car pkg-a)))
+        (avail-b (r-pkg-menu-pkg-available (car pkg-b))))
+    (cond
+     ((and (null avail-a) (null avail-b))
+      (r-pkg-menu--name-pred pkg-a pkg-b))
+     ((and (not (null avail-a)) (not (null avail-b)))
+      (r-pkg-menu--name-pred pkg-a pkg-b))
+     ((null avail-a) nil)
+     (t t))))
 
 (provide 'r-pkg-menu)
