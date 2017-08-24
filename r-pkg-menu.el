@@ -1,3 +1,43 @@
+;;; r-pkg-menu.el --- Manage R packages with Emacs and ESS -*- lexical-binding: t -*-
+
+;; Copyright (C) 2017 Aaron Jacobs
+
+;; Author: Aaron Jacobs <atheriel@gmail.com>
+;; Version: 0.1
+;; Keywords: ess
+;; URL: https://github.com/atheriel/r-pkgdev.el
+
+;; This file is not part of GNU Emacs.
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; https://github.com/atheriel/r-pkg-menu.el
+
+;;; Code:
+
+;;;; Front Matter
+
+(require 'package)
+(require 'ess-inf)
+
+(eval-and-compile
+  (require 'cl-lib))
+
+;;;; R Code
+
 (defconst r-pkg-menu--pkg-list-code
   "local({
 # Get all installed packages and relevant metadata.
@@ -65,6 +105,8 @@ invisible(NULL)
 })
 ")
 
+;;;; Data Format
+
 (cl-defstruct (r-pkg-menu-pkg
                (:constructor r-pkg-menu-pkg-create))
   "Docs."
@@ -77,28 +119,7 @@ invisible(NULL)
   title
   desc)
 
-(defun r-pkg-menu--format-pkg (pkg)
-  "Docs."
-  (list pkg
-        `[,(propertize (r-pkg-menu-pkg-name pkg) 'font-lock-face 'package-name)
-          ,(if (not (r-pkg-menu-pkg-available pkg)) "--"
-             (propertize (r-pkg-menu-pkg-available pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-version pkg)) "--"
-             (propertize (r-pkg-menu-pkg-version pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-status pkg)) "--"
-             (propertize (r-pkg-menu-pkg-status pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-repo pkg)) "--"
-             (propertize (r-pkg-menu-pkg-repo pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-title pkg)) "--"
-             (propertize (r-pkg-menu-pkg-title pkg)
-                         'font-lock-face 'package-description))
-          ,(if (not (r-pkg-menu-pkg-desc pkg)) "--"
-             (propertize (r-pkg-menu-pkg-desc pkg)
-                         'font-lock-face 'package-description))]))
+;;;; Major Mode
 
 (define-derived-mode r-pkg-menu-mode tabulated-list-mode "R Package Menu"
   "Docs."
@@ -106,6 +127,7 @@ invisible(NULL)
   (setq tabulated-list-sort-key '("Available" . nil))
   (add-hook 'tabulated-list-revert-hook #'r-pkg-menu--refresh nil t))
 
+;;;###autoload
 (defun r-pkg-menu ()
   "Docs."
   (interactive)
@@ -178,7 +200,30 @@ invisible(NULL)
     ;; (kill-buffer buff)
     (message "R Packages: %d" (length pkgs))))
 
-;;;; Sorting Package Entries
+;;;; Formatting and Sorting Package Entries
+
+(defun r-pkg-menu--format-pkg (pkg)
+  "Docs."
+  (list pkg
+        `[,(propertize (r-pkg-menu-pkg-name pkg) 'font-lock-face 'package-name)
+          ,(if (not (r-pkg-menu-pkg-available pkg)) "--"
+             (propertize (r-pkg-menu-pkg-available pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-version pkg)) "--"
+             (propertize (r-pkg-menu-pkg-version pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-status pkg)) "--"
+             (propertize (r-pkg-menu-pkg-status pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-repo pkg)) "--"
+             (propertize (r-pkg-menu-pkg-repo pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-title pkg)) "--"
+             (propertize (r-pkg-menu-pkg-title pkg)
+                         'font-lock-face 'package-description))
+          ,(if (not (r-pkg-menu-pkg-desc pkg)) "--"
+             (propertize (r-pkg-menu-pkg-desc pkg)
+                         'font-lock-face 'package-description))]))
 
 (defun r-pkg-menu--name-pred (pkg-a pkg-b)
   "Compare the names of PKG-A and PKG-B.
@@ -220,4 +265,12 @@ is on the package name."
      ((null avail-a) nil)
      (t t))))
 
+;;;; End Matter
+
 (provide 'r-pkg-menu)
+
+;; Local Variables:
+;; coding: utf-8
+;; End:
+
+;;; r-pkg-menu.el ends here
