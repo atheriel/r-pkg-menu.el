@@ -252,11 +252,22 @@ for updating or re-installation."
 for deletion."
   (interactive)
   ;; TODO: Add support for marking multiple entries when region is active.
-  ;; TODO: Warn on marking packages that are listed as dependencies.
-  ;; TODO: Prevent marking packages that are base or recommended.
   (if (string= (r-pkg-menu--get-tag pos) "D")
       (r-pkg-menu--set-tag " " pos)
-    (r-pkg-menu--set-tag "D")))
+    (let ((pkg (r-pkg-menu--pkg-at-point pos)))
+      (when (pcase (r-pkg-menu-pkg-status pkg)
+              ("base" (prog1 nil
+                        (message "R's base packages cannot be removed")))
+              ("dependency"
+               (yes-or-no-p (format (concat "Package '%s' is depended upon by "
+                                            "other packages. Remove anyway?")
+                                    (r-pkg-menu-pkg-name pkg))))
+              ("recommended"
+               (yes-or-no-p (format (concat "Package '%s' is recommended. "
+                                            "Remove anyway?")
+                                    (r-pkg-menu-pkg-name pkg))))
+              (_ t))
+        (r-pkg-menu--set-tag "D")))))
 
 (defun r-pkg-menu--get-pkgs-marked-update ()
   "Retrieve a list of all packages marked 'U' for updating or
