@@ -217,6 +217,70 @@ is on the package name."
      ((null avail-a) nil)
      (t t))))
 
+;;;; Marking Packages
+
+(defsubst r-pkg-menu--pkg-at-point (&optional pos)
+  (tabulated-list-get-id pos))
+
+(defun r-pkg-menu--set-tag (mark &optional pos)
+  "Tag the package under point (or at POS if non-nil) with MARK."
+  (save-excursion
+    (when pos (goto-char pos))
+    (tabulated-list-put-tag mark)))
+
+(defun r-pkg-menu--get-tag (&optional pos)
+  "Retrieve the mark for the `tabulated-list-entry' under point,
+or at POS if non-nil."
+  (save-excursion
+    (when pos (goto-char pos))
+    (beginning-of-line)
+    (buffer-substring-no-properties (point) (1+ (point)))))
+
+(defun r-pkg-menu-mark-or-unmark-update (&optional pos)
+  "Mark or unmark the package under point (or at POS if non-nil)
+for updating or re-installation."
+  (interactive)
+  ;; TODO: Add support for marking multiple entries when region is active.
+  ;; TODO: Prevent marking packages that don't have a source.
+  ;; TODO: (Temporary) Prevent marking packages from GitHub.
+  (if (string= (r-pkg-menu--get-tag pos) "U")
+      (r-pkg-menu--set-tag " " pos)
+    (r-pkg-menu--set-tag "U")))
+
+(defun r-pkg-menu-mark-or-unmark-delete (&optional pos)
+  "Mark or unmark the package under point (or at POS if non-nil)
+for deletion."
+  (interactive)
+  ;; TODO: Add support for marking multiple entries when region is active.
+  ;; TODO: Warn on marking packages that are listed as dependencies.
+  ;; TODO: Prevent marking packages that are base or recommended.
+  (if (string= (r-pkg-menu--get-tag pos) "D")
+      (r-pkg-menu--set-tag " " pos)
+    (r-pkg-menu--set-tag "D")))
+
+(defun r-pkg-menu--get-pkgs-marked-update ()
+  "Retrieve a list of all packages marked 'U' for updating or
+re-installation."
+  (let (queue)
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (equal (point) (point-max)))
+        (when (string= (r-pkg-menu--get-tag) "U")
+          (push (r-pkg-menu--pkg-at-point) queue))
+        (forward-line 1)))
+    queue))
+
+(defun r-pkg-menu--get-pkgs-marked-delete ()
+  "Retrieve a list of all packages marked 'D' for deletion."
+  (let (queue)
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (equal (point) (point-max)))
+        (when (string= (r-pkg-menu--get-tag) "U")
+          (push (r-pkg-menu--pkg-at-point) queue))
+        (forward-line 1)))
+    queue))
+
 ;;;; End Matter
 
 (provide 'r-pkg-menu)
