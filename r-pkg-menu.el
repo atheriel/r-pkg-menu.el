@@ -301,6 +301,18 @@ re-installation."
         (forward-line 1)))
     queue))
 
+;;;; Evil Support
+
+(with-eval-after-load 'evil
+  ;; Start in motion mode.
+  (add-to-list 'evil-motion-state-modes 'r-pkg-menu-mode)
+  (evil-define-key* 'motion r-pkg-menu-mode-map
+                    "gr" #'revert-buffer)
+  (evil-define-key* 'visual r-pkg-menu-mode-map
+                    "gr" #'revert-buffer
+                    "d" #'r-pkg-menu-mark-or-unmark-delete
+                    "u" #'r-pkg-menu-mark-or-unmark-update))
+
 ;;;; End Matter
 
 (provide 'r-pkg-menu)
