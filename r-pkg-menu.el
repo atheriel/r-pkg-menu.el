@@ -73,8 +73,17 @@
 
 ;;;; Major Mode
 
+(defvar r-pkg-menu-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map tabulated-list-mode-map)
+    (define-key map [?d] #'r-pkg-menu-mark-or-unmark-delete)
+    (define-key map [?u] #'r-pkg-menu-mark-or-unmark-update)
+    map)
+  "Local keymap for `r-pkg-menu-mode' buffers.")
+
 (define-derived-mode r-pkg-menu-mode tabulated-list-mode "R Package Menu"
   "Docs."
+  :keymap r-pkg-menu-mode-map
   (setq tabulated-list-padding 2)
   (setq tabulated-list-sort-key '("Available" . nil))
   (add-hook 'tabulated-list-revert-hook #'r-pkg-menu--refresh nil t))
