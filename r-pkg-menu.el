@@ -36,6 +36,11 @@
 (eval-and-compile
   (require 'cl-lib))
 
+(defcustom r-pkg-menu-title-as-desc nil
+  "Use the R package's title field as its description, instead of
+the description itself."
+  :type 'boolean)
+
 ;;;; R Code
 
 (defconst r-pkg-menu-dir
@@ -153,7 +158,6 @@
                                     ("Installed" 9 nil)
                                     ("Status" 11 r-pkg-menu--status-pred)
                                     ("Source" 10 t)
-                                    ("Title" 50 nil)
                                     ("Description" 0 nil)])
       ;; Refresh the header.
       (tabulated-list-init-header))
@@ -179,12 +183,15 @@
           ,(if (not (r-pkg-menu-pkg-repo pkg)) "--"
              (propertize (r-pkg-menu-pkg-repo pkg)
                          'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-title pkg)) "--"
-             (propertize (r-pkg-menu-pkg-title pkg)
-                         'font-lock-face 'package-description))
-          ,(if (not (r-pkg-menu-pkg-desc pkg)) "--"
-             (propertize (r-pkg-menu-pkg-desc pkg)
-                         'font-lock-face 'package-description))]))
+          ,(if r-pkg-menu-title-as-desc
+               ;; Print the package's Title.
+               (if (not (r-pkg-menu-pkg-title pkg)) "--"
+                 (propertize (r-pkg-menu-pkg-title pkg)
+                             'font-lock-face 'package-description))
+             ;; Or its Description.
+             (if (not (r-pkg-menu-pkg-desc pkg)) "--"
+               (propertize (r-pkg-menu-pkg-desc pkg)
+                           'font-lock-face 'package-description)))]))
 
 (defun r-pkg-menu--name-pred (pkg-a pkg-b)
   "Compare the names of PKG-A and PKG-B.
