@@ -104,6 +104,7 @@ the description itself."
       (r-pkg-menu-mode)
       (setq-local ess-local-process-name proc)
       (r-pkg-menu--refresh)
+      (r-pkg-menu-refresh-header)
       (tabulated-list-print)
       (hl-line-mode 1)
       (switch-to-buffer (current-buffer)))))
@@ -152,18 +153,23 @@ the description itself."
     ;; Write the list of packages into `tabulated-list-entries'.
     (with-current-buffer (get-buffer-create "*R Packages*")
       (setq tabulated-list-entries
-            (mapcar #'r-pkg-menu--format-pkg pkgs)
-            tabulated-list-format `[("Package" 18 r-pkg-menu--name-pred)
-                                    ("Available" 9 r-pkg-menu--available-pred)
-                                    ("Installed" 9 nil)
-                                    ("Status" 11 r-pkg-menu--status-pred)
-                                    ("Source" 10 t)
-                                    ("Description" 0 nil)])
-      ;; Refresh the header.
-      (tabulated-list-init-header))
+            (mapcar #'r-pkg-menu--format-pkg pkgs)))
     ;; Clean up the intermediate buffer.
     ;; (kill-buffer buff)
     (message "R Packages: %d" (length pkgs))))
+
+(defun r-pkg-menu-refresh-header ()
+  "Wrapper around `tabulated-list-init-header' that sets up the
+Package Menu header format and initializes it."
+  (interactive)
+  (setq tabulated-list-format `[("Package" 14 r-pkg-menu--name-pred)
+                                ("Available" 11 r-pkg-menu--available-pred)
+                                ("Installed" 11 nil)
+                                ("Status" 12 r-pkg-menu--status-pred)
+                                ("Source" 7 t)
+                                (,(if r-pkg-menu-title-as-desc "Title"
+                                    "Description") 0 nil)])
+  (tabulated-list-init-header))
 
 ;;;; Formatting and Sorting Package Entries
 
