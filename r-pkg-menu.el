@@ -135,24 +135,17 @@ session."
 
 (defun r-pkg-menu--parse-r-pkgs (buffer)
   "Parse BUFFER and return the list of packages it contains."
-  (let (header has-repo pkgs)
+  (let (pkgs)
     (with-current-buffer buffer
       (goto-char (point-min))
       ;; Skip forward until we see the printed data.frame output.
-      (if (not (re-search-forward "Package" nil t))
+      (if (not (re-search-forward "Description" nil t))
           ;; Error out if this doesn't look like we'd expect.
           (progn
             (user-error "Failed to find package updates.")
             (switch-to-buffer buff))
-        ;; Parse the header.
-        (let* ((begin (progn (backward-word 1) (point)))
-               (end (progn (re-search-forward "Description") (point))))
-          (setq header (split-string (buffer-substring begin end)
-                                     "[\\ ]\\{1,\\}" t "\\ ")
-                has-repo (not (null (member "Source" header))))
-          (message "header: %s" header)
-          (forward-line 1))
         ;; Populate the list of packages.
+        (forward-line 1)
         (while (not (equal (point) (point-max)))
           (let* ((begin (point))
                  (end (progn (forward-line 1) (point)))
