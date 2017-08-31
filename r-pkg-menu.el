@@ -113,9 +113,21 @@ the description itself."
   (interactive)
   (inferior-ess-r-force)
   (let ((buff (get-buffer-create "*R Packages (Internal)*"))
-        header has-repo pkgs)
+        pkgs)
     (ess-command r-pkg-menu--pkg-list-code buff)
-    (with-current-buffer buff
+    (setq pkgs (r-pkg-menu--parse-r-pkgs buff))
+    ;; Write the list of packages into `tabulated-list-entries'.
+    (with-current-buffer (get-buffer-create "*R Packages*")
+      (setq tabulated-list-entries
+            (mapcar #'r-pkg-menu--format-pkg pkgs)))
+    ;; Clean up the intermediate buffer.
+    ;; (kill-buffer buff)
+    (message "R Packages: %d" (length pkgs))))
+
+(defun r-pkg-menu--parse-r-pkgs (buffer)
+  "Parse BUFFER and return the list of packages it contains."
+  (let (header has-repo pkgs)
+    (with-current-buffer buffer
       (goto-char (point-min))
       ;; Skip forward until we see the printed data.frame output.
       (if (not (re-search-forward "Package" nil t))
@@ -150,13 +162,7 @@ the description itself."
                        :title (nth 5 parts)
                        :desc (nth 6 parts))))
             (push pkg pkgs)))))
-    ;; Write the list of packages into `tabulated-list-entries'.
-    (with-current-buffer (get-buffer-create "*R Packages*")
-      (setq tabulated-list-entries
-            (mapcar #'r-pkg-menu--format-pkg pkgs)))
-    ;; Clean up the intermediate buffer.
-    ;; (kill-buffer buff)
-    (message "R Packages: %d" (length pkgs))))
+    pkgs))
 
 (defun r-pkg-menu-refresh-header ()
   "Wrapper around `tabulated-list-init-header' that sets up the
