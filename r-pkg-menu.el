@@ -97,8 +97,7 @@ the description itself."
 (defun r-pkg-menu ()
   "Docs."
   (interactive)
-  (unless (and (boundp 'ess-dialect) (string= "R" ess-dialect))
-    (user-error "Must be called from an *R* buffer."))
+  (inferior-ess-r-force)
   (let ((proc ess-local-process-name))
     (with-current-buffer (get-buffer-create "*R Packages*")
       (r-pkg-menu-mode)
@@ -112,6 +111,7 @@ the description itself."
 (defun r-pkg-menu--refresh ()
   "Docs."
   (interactive)
+  (inferior-ess-r-force)
   (let ((buff (get-buffer-create "*R Packages (Internal)*"))
         header has-repo pkgs)
     (ess-command r-pkg-menu--pkg-list-code buff)
