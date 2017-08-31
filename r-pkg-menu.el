@@ -62,6 +62,13 @@ the description itself."
       (buffer-string)))
   "R code to load relevant package information from a running R session.")
 
+(defsubst r-pkg-menu--cran-is-unset ()
+  "Checks whether the 'CRAN' repository is unset in a given R
+session."
+  (string-equal
+   "@CRAN@"
+   (car (ess-get-words-from-vector "getOption('repos')[['CRAN']]\n"))))
+
 ;;;; Data Format
 
 (cl-defstruct (r-pkg-menu-pkg
@@ -98,6 +105,8 @@ the description itself."
   "Docs."
   (interactive)
   (inferior-ess-r-force)
+  (when (r-pkg-menu--cran-is-unset)
+    (error "CRAN mirror has not been set properly"))
   (let ((proc ess-local-process-name))
     (with-current-buffer (get-buffer-create "*R Packages*")
       (r-pkg-menu-mode)
