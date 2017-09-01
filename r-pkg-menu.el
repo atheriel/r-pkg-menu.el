@@ -69,7 +69,7 @@ session."
    "@CRAN@"
    (car (ess-get-words-from-vector "getOption('repos')[['CRAN']]\n"))))
 
-;;;; Data Format
+;;;; Data Format and Package Cache
 
 (cl-defstruct (r-pkg-menu-pkg
                (:constructor r-pkg-menu-pkg-create))
@@ -85,67 +85,6 @@ session."
 
 (defvar-local r-pkg-menu-pkgs nil
   "Buffer-local cache of R packages in the buffer's R session.")
-
-;;;; Major Mode
-
-(defvar r-pkg-menu-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map tabulated-list-mode-map)
-    (define-key map [?d] #'r-pkg-menu-mark-or-unmark-delete)
-    (define-key map [?u] #'r-pkg-menu-mark-or-unmark-update)
-    map)
-  "Local keymap for `r-pkg-menu-mode' buffers.")
-
-(define-derived-mode r-pkg-menu-mode tabulated-list-mode "R Package Menu"
-  "Docs."
-  :keymap r-pkg-menu-mode-map
-  (setq tabulated-list-padding 2)
-  (setq tabulated-list-sort-key '("Available" . nil))
-  (add-hook 'tabulated-list-revert-hook #'r-pkg-menu--refresh nil t))
-
-;;;###autoload
-(defun r-pkg-menu ()
-  "Docs."
-  (interactive)
-  (inferior-ess-r-force)
-  (when (r-pkg-menu--cran-is-unset)
-    (error "CRAN mirror has not been set properly"))
-  (let ((proc ess-local-process-name)
-        (pkgs r-pkg-menu-pkgs))
-    (with-current-buffer (get-buffer-create "*R Packages*")
-      (r-pkg-menu-mode)
-      (setq-local ess-local-process-name proc)
-      (unless pkgs (r-pkg-menu-refresh-contents))
-      (r-pkg-menu--refresh)
-      (r-pkg-menu-refresh-header)
-      (tabulated-list-print)
-      (hl-line-mode 1)
-      (switch-to-buffer (current-buffer)))))
-
-;;;###autoload
-(defun r-pkg-menu-refresh-contents ()
-  "Update the cache of packages used in the current R session."
-  (interactive)
-  (inferior-ess-r-force)
-  (message "Building list of installed R packages & available updates...")
-  (let ((buff (get-buffer-create "*R Packages (Internal)*"))
-        pkgs)
-    (ess-command r-pkg-menu--pkg-list-code buff)
-    (setq pkgs (r-pkg-menu--parse-r-pkgs buff))
-    ;; Store a buffer-local cache in the R process buffer.
-    (with-current-buffer (process-buffer (get-process ess-local-process-name))
-      (setq r-pkg-menu-pkgs pkgs))))
-
-(defun r-pkg-menu--refresh ()
-  "Repopulate the `tabulated-list-entries' in the
-`r-pkg-menu-mode' buffer."
-  ;; Retrieve the package list from the buffer-local cache.
-  (let ((pkgs (buffer-local-value
-               'r-pkg-menu-pkgs
-               (process-buffer (get-process ess-local-process-name)))))
-    (with-current-buffer (get-buffer-create "*R Packages*")
-      (setq tabulated-list-entries
-            (mapcar #'r-pkg-menu--format-pkg pkgs)))))
 
 (defun r-pkg-menu--parse-r-pkgs (buffer)
   "Parse BUFFER and return the list of packages it contains."
@@ -180,88 +119,23 @@ session."
             (push pkg pkgs)))))
     pkgs))
 
-(defun r-pkg-menu-refresh-header ()
-  "Wrapper around `tabulated-list-init-header' that sets up the
-Package Menu header format and initializes it."
+;;;###autoload
+(defun r-pkg-menu-refresh-contents ()
+  "Update the cache of packages used in the current R session."
   (interactive)
-  (setq tabulated-list-format `[("Package" 14 r-pkg-menu--name-pred)
-                                ("Available" 11 r-pkg-menu--available-pred)
-                                ("Installed" 11 nil)
-                                ("Status" 12 r-pkg-menu--status-pred)
-                                ("Source" 7 t)
-                                (,(if r-pkg-menu-title-as-desc "Title"
-                                    "Description") 0 nil)])
-  (tabulated-list-init-header))
+  (inferior-ess-r-force)
+  (message "Building list of installed R packages & available updates...")
+  (let ((buff (get-buffer-create "*R Packages (Internal)*"))
+        pkgs)
+    (ess-command r-pkg-menu--pkg-list-code buff)
+    (setq pkgs (r-pkg-menu--parse-r-pkgs buff))
+    ;; Store a buffer-local cache in the R process buffer.
+    (with-current-buffer (process-buffer (get-process ess-local-process-name))
+      (setq r-pkg-menu-pkgs pkgs))))
 
-;;;; Formatting and Sorting Package Entries
+;;;; Major Mode
 
-(defun r-pkg-menu--format-pkg (pkg)
-  "Docs."
-  (list pkg
-        `[,(propertize (r-pkg-menu-pkg-name pkg) 'font-lock-face 'package-name)
-          ,(if (not (r-pkg-menu-pkg-available pkg)) "--"
-             (propertize (r-pkg-menu-pkg-available pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-version pkg)) "--"
-             (propertize (r-pkg-menu-pkg-version pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-status pkg)) "--"
-             (propertize (r-pkg-menu-pkg-status pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if (not (r-pkg-menu-pkg-repo pkg)) "--"
-             (propertize (r-pkg-menu-pkg-repo pkg)
-                         'font-lock-face 'package-status-available))
-          ,(if r-pkg-menu-title-as-desc
-               ;; Print the package's Title.
-               (if (not (r-pkg-menu-pkg-title pkg)) "--"
-                 (propertize (r-pkg-menu-pkg-title pkg)
-                             'font-lock-face 'package-description))
-             ;; Or its Description.
-             (if (not (r-pkg-menu-pkg-desc pkg)) "--"
-               (propertize (r-pkg-menu-pkg-desc pkg)
-                           'font-lock-face 'package-description)))]))
-
-(defun r-pkg-menu--name-pred (pkg-a pkg-b)
-  "Compare the names of PKG-A and PKG-B.
-
-Following R's convention, this comparison is case-insensitive."
-  (string< (downcase (r-pkg-menu-pkg-name (car pkg-a)))
-           (downcase (r-pkg-menu-pkg-name (car pkg-b)))))
-
-(defun r-pkg-menu--status-index (pkg)
-  "Convert the status of PKG from a string to an index."
-  (pcase (r-pkg-menu-pkg-status pkg)
-    ("installed" 4)
-    ("dependency" 3)
-    ("recommended" 2)
-    ("base" 1)
-    (_ 0)))
-
-(defun r-pkg-menu--status-pred (pkg-a pkg-b)
-  "Compare the status of PKG-A and PKG-B.
-
-The sort order is 'base', 'recommended', 'dependency',
-'installed'."
-  (< (r-pkg-menu--status-index (car pkg-a))
-     (r-pkg-menu--status-index (car pkg-b))))
-
-(defun r-pkg-menu--available-pred (pkg-a pkg-b)
-  "Compare available versions of PKG-A and PKG-B.
-
-The sort order is purely 'does an available version exist'. There
-is no sorting on the actual version. Instead, secondary sorting
-is on the package name."
-  (let ((avail-a (r-pkg-menu-pkg-available (car pkg-a)))
-        (avail-b (r-pkg-menu-pkg-available (car pkg-b))))
-    (cond
-     ((and (null avail-a) (null avail-b))
-      (r-pkg-menu--name-pred pkg-a pkg-b))
-     ((and (not (null avail-a)) (not (null avail-b)))
-      (r-pkg-menu--name-pred pkg-a pkg-b))
-     ((null avail-a) nil)
-     (t t))))
-
-;;;; Marking Packages
+;;;;; Marking Packages in the R Packages Buffer
 
 (defsubst r-pkg-menu--pkg-at-point (&optional pos)
   (tabulated-list-get-id pos))
@@ -335,6 +209,137 @@ re-installation."
           (push (r-pkg-menu--pkg-at-point) queue))
         (forward-line 1)))
     queue))
+
+;;;;; Sorting Packages in the R Packages Buffer
+
+(defun r-pkg-menu--name-pred (pkg-a pkg-b)
+  "Compare the names of PKG-A and PKG-B.
+
+Following R's convention, this comparison is case-insensitive."
+  (string< (downcase (r-pkg-menu-pkg-name (car pkg-a)))
+           (downcase (r-pkg-menu-pkg-name (car pkg-b)))))
+
+(defun r-pkg-menu--status-index (pkg)
+  "Convert the status of PKG from a string to an index."
+  (pcase (r-pkg-menu-pkg-status pkg)
+    ("installed" 4)
+    ("dependency" 3)
+    ("recommended" 2)
+    ("base" 1)
+    (_ 0)))
+
+(defun r-pkg-menu--status-pred (pkg-a pkg-b)
+  "Compare the status of PKG-A and PKG-B.
+
+The sort order is 'base', 'recommended', 'dependency',
+'installed'."
+  (< (r-pkg-menu--status-index (car pkg-a))
+     (r-pkg-menu--status-index (car pkg-b))))
+
+(defun r-pkg-menu--available-pred (pkg-a pkg-b)
+  "Compare available versions of PKG-A and PKG-B.
+
+The sort order is purely 'does an available version exist'. There
+is no sorting on the actual version. Instead, secondary sorting
+is on the package name."
+  (let ((avail-a (r-pkg-menu-pkg-available (car pkg-a)))
+        (avail-b (r-pkg-menu-pkg-available (car pkg-b))))
+    (cond
+     ((and (null avail-a) (null avail-b))
+      (r-pkg-menu--name-pred pkg-a pkg-b))
+     ((and (not (null avail-a)) (not (null avail-b)))
+      (r-pkg-menu--name-pred pkg-a pkg-b))
+     ((null avail-a) nil)
+     (t t))))
+
+;;;;; Formatting Entries for the R Package Buffer
+
+(defun r-pkg-menu--format-pkg (pkg)
+  "Formats PKG appropriately for `tabulated-list-entries' in the
+`r-pkg-menu-mode' buffer."
+  (list pkg
+        `[,(propertize (r-pkg-menu-pkg-name pkg) 'font-lock-face 'package-name)
+          ,(if (not (r-pkg-menu-pkg-available pkg)) "--"
+             (propertize (r-pkg-menu-pkg-available pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-version pkg)) "--"
+             (propertize (r-pkg-menu-pkg-version pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-status pkg)) "--"
+             (propertize (r-pkg-menu-pkg-status pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if (not (r-pkg-menu-pkg-repo pkg)) "--"
+             (propertize (r-pkg-menu-pkg-repo pkg)
+                         'font-lock-face 'package-status-available))
+          ,(if r-pkg-menu-title-as-desc
+               ;; Print the package's Title.
+               (if (not (r-pkg-menu-pkg-title pkg)) "--"
+                 (propertize (r-pkg-menu-pkg-title pkg)
+                             'font-lock-face 'package-description))
+             ;; Or its Description.
+             (if (not (r-pkg-menu-pkg-desc pkg)) "--"
+               (propertize (r-pkg-menu-pkg-desc pkg)
+                           'font-lock-face 'package-description)))]))
+
+(defun r-pkg-menu--init-header ()
+  "Wrapper around `tabulated-list-init-header' that sets up the
+Package Menu header format and initializes it."
+  (interactive)
+  (setq tabulated-list-format `[("Package" 14 r-pkg-menu--name-pred)
+                                ("Available" 11 r-pkg-menu--available-pred)
+                                ("Installed" 11 nil)
+                                ("Status" 12 r-pkg-menu--status-pred)
+                                ("Source" 7 t)
+                                (,(if r-pkg-menu-title-as-desc "Title"
+                                    "Description") 0 nil)])
+  (tabulated-list-init-header))
+
+(defun r-pkg-menu--refresh ()
+  "Repopulate the `tabulated-list-entries' in the
+`r-pkg-menu-mode' buffer."
+  ;; Retrieve the package list from the buffer-local cache.
+  (let ((pkgs (buffer-local-value
+               'r-pkg-menu-pkgs
+               (process-buffer (get-process ess-local-process-name)))))
+    (with-current-buffer (get-buffer-create "*R Packages*")
+      (setq tabulated-list-entries
+            (mapcar #'r-pkg-menu--format-pkg pkgs)))))
+
+;;;;; Major Mode Bindings and Definition
+
+(defvar r-pkg-menu-mode-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map tabulated-list-mode-map)
+    (define-key map [?d] #'r-pkg-menu-mark-or-unmark-delete)
+    (define-key map [?u] #'r-pkg-menu-mark-or-unmark-update)
+    map)
+  "Local keymap for `r-pkg-menu-mode' buffers.")
+
+(define-derived-mode r-pkg-menu-mode tabulated-list-mode "R Package Menu"
+  "Docs."
+  :keymap r-pkg-menu-mode-map
+  (setq tabulated-list-padding 2)
+  (setq tabulated-list-sort-key '("Available" . nil))
+  (add-hook 'tabulated-list-revert-hook #'r-pkg-menu--refresh nil t))
+
+;;;###autoload
+(defun r-pkg-menu ()
+  "Docs."
+  (interactive)
+  (inferior-ess-r-force)
+  (when (r-pkg-menu--cran-is-unset)
+    (error "CRAN mirror has not been set properly"))
+  (let ((proc ess-local-process-name)
+        (pkgs r-pkg-menu-pkgs))
+    (with-current-buffer (get-buffer-create "*R Packages*")
+      (r-pkg-menu-mode)
+      (setq-local ess-local-process-name proc)
+      (unless pkgs (r-pkg-menu-refresh-contents))
+      (r-pkg-menu--refresh)
+      (r-pkg-menu--init-header)
+      (tabulated-list-print)
+      (hl-line-mode 1)
+      (switch-to-buffer (current-buffer)))))
 
 ;;;; Evil Support
 
