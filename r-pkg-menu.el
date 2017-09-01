@@ -83,6 +83,9 @@ session."
   title
   desc)
 
+(defvar-local r-pkg-menu-pkgs nil
+  "Buffer-local cache of R packages in the buffer's R session.")
+
 ;;;; Major Mode
 
 (defvar r-pkg-menu-mode-map
@@ -107,31 +110,42 @@ session."
   (inferior-ess-r-force)
   (when (r-pkg-menu--cran-is-unset)
     (error "CRAN mirror has not been set properly"))
-  (let ((proc ess-local-process-name))
+  (let ((proc ess-local-process-name)
+        (pkgs r-pkg-menu-pkgs))
     (with-current-buffer (get-buffer-create "*R Packages*")
       (r-pkg-menu-mode)
       (setq-local ess-local-process-name proc)
+      (unless pkgs (r-pkg-menu-refresh-contents))
       (r-pkg-menu--refresh)
       (r-pkg-menu-refresh-header)
       (tabulated-list-print)
       (hl-line-mode 1)
       (switch-to-buffer (current-buffer)))))
 
-(defun r-pkg-menu--refresh ()
-  "Docs."
+;;;###autoload
+(defun r-pkg-menu-refresh-contents ()
+  "Update the cache of packages used in the current R session."
   (interactive)
   (inferior-ess-r-force)
+  (message "Building list of installed R packages & available updates...")
   (let ((buff (get-buffer-create "*R Packages (Internal)*"))
         pkgs)
     (ess-command r-pkg-menu--pkg-list-code buff)
     (setq pkgs (r-pkg-menu--parse-r-pkgs buff))
-    ;; Write the list of packages into `tabulated-list-entries'.
+    ;; Store a buffer-local cache in the R process buffer.
+    (with-current-buffer (process-buffer (get-process ess-local-process-name))
+      (setq r-pkg-menu-pkgs pkgs))))
+
+(defun r-pkg-menu--refresh ()
+  "Repopulate the `tabulated-list-entries' in the
+`r-pkg-menu-mode' buffer."
+  ;; Retrieve the package list from the buffer-local cache.
+  (let ((pkgs (buffer-local-value
+               'r-pkg-menu-pkgs
+               (process-buffer (get-process ess-local-process-name)))))
     (with-current-buffer (get-buffer-create "*R Packages*")
       (setq tabulated-list-entries
-            (mapcar #'r-pkg-menu--format-pkg pkgs)))
-    ;; Clean up the intermediate buffer.
-    ;; (kill-buffer buff)
-    (message "R Packages: %d" (length pkgs))))
+            (mapcar #'r-pkg-menu--format-pkg pkgs)))))
 
 (defun r-pkg-menu--parse-r-pkgs (buffer)
   "Parse BUFFER and return the list of packages it contains."
